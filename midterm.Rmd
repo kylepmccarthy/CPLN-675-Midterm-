@@ -67,6 +67,11 @@ imperviousness <- st_read("https://data.calgary.ca/resource/i9mt-qafb.geojson")%
 water <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/water.shp")%>% 
   st_transform(crs = sr)
 
+LandUse <- 
+  st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/LandUse.geojson")%>% 
+  st_transform(crs = sr)%>% 
+  filter(major == "Parks, Recreation and Public Education" | major == "Residential - Low Density")
+
 PropVal <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/midTermProject_Data/PropVal.geojson")%>% 
   st_transform(crs = sr) 
 # const <- const_spatial %>%
@@ -199,18 +204,19 @@ inundation_fishnet<-
   mutate(Imperv = ifelse(pctImpervious > 0.50, "Impervious", "Permeable"), 
          pctImpervious = pctImpervious * 100) 
 
-inundation_fishnet$pctImpervCat <- cut(Inundation_fishnet$pctImpervious, 
-                      breaks = c(0,  20,  40, 60, 80, 100), 
-                       labels = c("0-20", "20-40", "40-60", "60-80", "80-100"), 
-                       right = FALSE)
-  
+Impervioustats <- 
+  inundation_fishnet%>%
+  dplyr::select(pctImpervious, Label)%>% 
+  mutate_all(funs(replace_na(.,0)))%>% 
+  group_by(Label)%>% 
+  summarise(pctImperv = mean(pctImpervious))
+
 
 
 # Group for Graph 
 
-ggplot(inundation_fishnet, aes(x = pctInundationCat)) + 
-  geom_bar(aes(fill = Label), position = 'dodge')+ 
-  scale_fill_manual(values = c("#E8E6EE", "#08072D"))
+ggplot()+ 
+  geom_bar(data = Impervioustats, aes(x = Label, y = pctImperv), stat="identity", fill = "blue")
 
 
 
@@ -269,6 +275,34 @@ PropValStats <-
 
 ggplot()+ 
   geom_bar(data = PropValStats, aes(x = Label, y = assessed_value), stat="identity", fill = "blue")
+
+
+
+```
+
+```{r LandUse, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
+
+LandUse1 <- 
+  LandUse%>% 
+  st_make_valid()%>%
+  st_intersection(inundation_Fish)%>% 
+  mutate(landuArea = as.numeric(st_area(.)))%>% 
+  st_drop_geometry()%>% 
+  group_by(uniqueID)%>%
+  summarise(landuArea = sum(landuArea))%>%
+  left_join(inundation_Fish, .)%>%
+  mutate(pctLandCover = landuArea / 250000)
+
+LandStats <- 
+  LandUse1 %>%
+  mutate_all(funs(replace_na(.,0)))%>% 
+  group_by(Label)%>% 
+  summarise(Rec_low = mean(pctLandCover))
+
+
+ggplot()+ 
+  geom_bar(data =LandStats, aes(x = Label, y = Rec_low), stat="identity", fill = "blue")
+
 
 
 
@@ -333,6 +367,9 @@ ggplot(testProbs, aes(d = obs, m = pred)) +
 
 
 ```
+
+
+
 ```{r Cross Validation, message=FALSE, warning=FALSE, include=TRUE, cache = TRUE, fig.height = 8 fig.width = 8} 
 
 ctrl <- trainControl(method = "cv", 
