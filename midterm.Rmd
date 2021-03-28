@@ -136,13 +136,16 @@ inundation_fishnet <-
   st_drop_geometry()%>% 
   left_join(fishnet, .)
 
+contourStat <- 
+  inundation_fishnet %>% 
+  dplyr::select(Label, ContourMin)%>% 
+  group_by(Label)%>%
+  summarise(avgContour = mean(ContourMin))%>%
+  st_drop_geometry() 
 
-ggplot(inundation_fishnet, aes(ContourMin))+ 
-geom_bar()+ 
-  labs(title = "Count of Inundated Gridcells by Elevation")+ 
-  xlab("Elevation")+ 
-  ylab("Count of Inundated Gridcells")
 
+ggplot()+ 
+  geom_bar(data = contourStat, aes(x = Label, y = avgContour), stat="identity", fill = "blue")
 
 ```
 
