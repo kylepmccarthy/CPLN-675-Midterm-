@@ -20,6 +20,7 @@ library(sf)
 library(tidyverse)
 library(knitr)
 library(kableExtra)
+library(FNN) 
 
 
 mapTheme <- function(base_size = 12) {
@@ -38,6 +39,9 @@ mapTheme <- function(base_size = 12) {
   )
 }
 
+root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
 ```
 
 
@@ -53,7 +57,7 @@ inundation <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/inundat
   mutate(Label = ifelse(gridcode == 0, "No Flooding", "Flooding")) %>% 
   st_make_valid() 
 
-contours <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/contours.shp")%>% 
+contours <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/Contours/contours.shp")%>% 
   st_transform(crs = sr)%>% 
   st_make_valid()
 
@@ -63,6 +67,9 @@ imperviousness <- st_read("https://data.calgary.ca/resource/i9mt-qafb.geojson")%
 water <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/water.shp")%>% 
   st_transform(crs = sr)
 
+PropVal <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/midTermProject_Data/PropVal.geojson")%>% 
+  st_transform(crs = sr) 
+# const <- const_spatial %>%
 
 fishnet <- 
   st_make_grid(Calgary,
@@ -236,6 +243,31 @@ ggplot()+
 
 ```
 
+```{r Parks, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
+
+st_c <- st_coordinates
+
+
+inundation_Fish <- 
+  inundation_Fish%>% 
+  mutate(Park_nn1 = nn_function(st_c(st_centroid(.)), st_c(parks), 10))
+
+
+ParkStats<- 
+  inundation_Fish%>% 
+  st_drop_geometry()%>%
+  na.omit()%>%
+  group_by(Label)%>% 
+  summarise( ParkAvgDist = mean(Park_nn1))
+
+
+
+ggplot()+ 
+  geom_bar(data = ParkStats, aes(x = Label, y = ParkAvgDist), stat="identity", fill = "blue")
+
+
+```
+
 ```{r model, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
 
 
@@ -261,6 +293,8 @@ preserveModel <- glm(Inundated ~ .,
 summary(preserveModel)
 
 ```
+
+
 ```{r Model Validation, message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 12, fig.width = 12} 
 
 classProbs <- predict(preserveModel, preserveTest, type="response")
@@ -293,7 +327,7 @@ ggplot(testProbs, aes(d = obs, m = pred)) +
 
 
 ```
-```{r Cross Validation, message=FALSE, warning=FALSE, include=TRUE, cache = TRUE, fig.height = 12, fig.width = 12} 
+```{r Cross Validation, message=FALSE, warning=FALSE, include=TRUE, cache = TRUE, fig.height = 8 fig.width = 8} 
 
 ctrl <- trainControl(method = "cv", 
                      number = 100, 
@@ -316,6 +350,10 @@ ggplot(as.data.frame(cvFit$resample), aes(Accuracy)) +
   scale_x_continuous(limits = c(0, 1)) +
   labs(x="Accuracy",
        y="Count")
+
+
+
+
 ```
 
 
