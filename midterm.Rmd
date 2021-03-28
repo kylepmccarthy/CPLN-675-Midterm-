@@ -186,13 +186,19 @@ inundation_fishnet <-
 
 inundation_fishnet<- 
   inundation_fishnet%>% 
-  mutate(Imperv = ifelse(pctImpervious > 0.50, "Impervious", "Permeable"))
+  mutate(Imperv = ifelse(pctImpervious > 0.50, "Impervious", "Permeable"), 
+         pctImpervious = pctImpervious * 100) 
+
+inundation_fishnet$pctImpervCat <- cut(Inundation_fishnet$pctImpervious, 
+                      breaks = c(0,  20,  40, 60, 80, 100), 
+                       labels = c("0-20", "20-40", "40-60", "60-80", "80-100"), 
+                       right = FALSE)
   
 
 
 # Group for Graph 
 
-ggplot(inundation_fishnet, aes(x = Imperv)) + 
+ggplot(inundation_fishnet, aes(x = pctInundationCat)) + 
   geom_bar(aes(fill = Label), position = 'dodge')+ 
   scale_fill_manual(values = c("#E8E6EE", "#08072D"))
 
@@ -228,6 +234,88 @@ ggplot()+
   geom_bar(data = BuidlingStats, aes(x = Label, y = BuildingCountAverage), stat="identity", fill = "blue")
 
 
+```
+
+```{r model, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
+
+
+inundation_Fish <- 
+  inundation_Fish %>%
+  dplyr::select(ContourMin, BuildingCount, MEAN, Inundated) 
+
+inundation_Fish$Inundated <- as.factor(inundation_Fish$Inundated)
+
+set.seed(3456)
+trainIndex <- createDataPartition(inundation_Fish$Inundated, p = .70,
+                                  list = FALSE,
+                                  times = 1)
+preserveTrain <- inundation_Fish[ -trainIndex,]
+preserveTest  <- inundation_Fish[-trainIndex,]
+
+typeof(inundation_Fish) 
+
+preserveModel <- glm(Inundated ~ ., 
+                    family="binomial"(link="logit"), data = preserveTrain %>%
+                                                            as.data.frame() %>%
+                                                            dplyr::select(-geometry))
+summary(preserveModel)
+
+```
+```{r Model Validation, message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 12, fig.width = 12} 
+
+classProbs <- predict(preserveModel, preserveTest, type="response")
+
+hist(classProbs)
+
+testProbs <- data.frame(obs = as.numeric(preserveTest$Inundated),
+                        pred = classProbs)
+
+ggplot(testProbs, aes(x = pred, fill=as.factor(obs))) + geom_density() +
+  facet_grid(obs ~ .) + xlab("Probability") + geom_vline(xintercept = .5) +
+  scale_fill_manual(values = c("dodgerblue4", "darkgreen"),
+                      labels = c("Not Inundated","Inundated"),
+                      name = "")
+
+```
+
+```{r ROC message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 12, fig.width = 12}
+
+testProbs$predClass  = ifelse(testProbs$pred > 0.5 ,0,1)
+
+caret::confusionMatrix(reference = as.factor(testProbs$obs), 
+                       data = as.factor(testProbs$predClass), 
+                       positive = "1")
+
+ggplot(testProbs, aes(d = obs, m = pred)) + 
+  geom_roc(n.cuts = 50, labels = FALSE) + 
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey')
+
+
+```
+```{r Cross Validation, message=FALSE, warning=FALSE, include=TRUE, cache = TRUE, fig.height = 12, fig.width = 12} 
+
+ctrl <- trainControl(method = "cv", 
+                     number = 100, 
+                     savePredictions = TRUE)
+
+inundation_Fish <- 
+  inundation_Fish %>% 
+  na.omit() 
+
+cvFit <- train(as.factor(Inundated) ~ .,  data = inundation_Fish %>% 
+                                                as.data.frame() %>%
+                                                dplyr::select(-geometry), 
+               method="glm", family="binomial",
+               trControl = ctrl)
+
+cvFit
+
+ggplot(as.data.frame(cvFit$resample), aes(Accuracy)) + 
+  geom_histogram() +
+  scale_x_continuous(limits = c(0, 1)) +
+  labs(x="Accuracy",
+       y="Count")
 ```
 
 
