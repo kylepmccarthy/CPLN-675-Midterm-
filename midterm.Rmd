@@ -247,23 +247,26 @@ ggplot()+
 
 st_c <- st_coordinates
 
+PropVal1 <- 
+  PropVal %>% 
+  mutate(assessed_value = as.numeric(assessed_value))%>%
+  dplyr::select(assessed_value)%>%
+  aggregate(., inundation_fishnet, mean)%>% 
+  mutate_all(funs(replace_na(.,0)))%>% 
+  mutate(uniqueID = rownames(.))%>%
+  st_drop_geometry()%>% 
+  left_join(inundation_fishnet, .)
 
-inundation_Fish <- 
-  inundation_Fish%>% 
-  mutate(Park_nn1 = nn_function(st_c(st_centroid(.)), st_c(parks), 10))
-
-
-ParkStats<- 
-  inundation_Fish%>% 
-  st_drop_geometry()%>%
+PropValStats <- 
+  PropVal1%>% 
   na.omit()%>%
+  st_drop_geometry()%>% 
   group_by(Label)%>% 
-  summarise( ParkAvgDist = mean(Park_nn1))
-
-
+  summarise(assessed_value = sum(assessed_value))
 
 ggplot()+ 
-  geom_bar(data = ParkStats, aes(x = Label, y = ParkAvgDist), stat="identity", fill = "blue")
+  geom_bar(data = PropValStats, aes(x = Label, y = assessed_value), stat="identity", fill = "blue")
+
 
 
 ```
