@@ -381,11 +381,12 @@ ctrl <- trainControl(method = "cv",
                      number = 100, 
                      savePredictions = TRUE)
 
-inundation_Fish <- 
+inundation_Fish1 <- 
   inundation_Fish %>% 
-  na.omit() 
+  na.omit() %>% 
+  dplyr::select(MEAN, pctImpervious, BuildingCount, pctLandCover, assessed_value, Inundated)
 
-cvFit <- train(as.factor(Inundated) ~ .,  data = inundation_Fish %>% 
+cvFit <- train(as.factor(Inundated) ~ .,  data = inundation_Fish1 %>% 
                                                 as.data.frame() %>%
                                                 dplyr::select(-geometry), 
                method="glm", family="binomial",
@@ -401,7 +402,29 @@ ggplot(as.data.frame(cvFit$resample), aes(Accuracy)) +
 
 
 
+```
 
+```{r Mapping Predictions, message=FALSE, warning=FALSE, include=TRUE, cache = TRUE, fig.height = 12, fig.width = 12} 
+
+allPredictions <- 
+  predict(cvFit, inundation_Fish, type="prob")[,2]
+  
+preserve <- 
+  cbind(inundation_Fish,allPredictions) %>%
+  mutate(allPredictions = round(allPredictions * 100)) 
+
+ ggplot() + 
+    geom_sf(data=preserve, aes(fill=factor(ntile(allPredictions,5))), colour=NA) +
+    scale_fill_manual(values = c("#edf8fb","#b3cde3","#8c96c6","#8856a7","#810f7c"),
+                      labels=as.character(quantile(preserve$allPredictions,
+                                                 c(0.1,.2,.4,.6,.8),na.rm=T)),
+                      name="Predicted\nProbabilities(%)\n(Quintile\nBreaks)") +
+  mapTheme() +
+  labs(title="")
+ 
+ 
+ 
+ 
 ```
 
 
