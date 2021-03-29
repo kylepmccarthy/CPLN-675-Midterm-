@@ -57,14 +57,7 @@ inundation <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/inundat
   mutate(Label = ifelse(gridcode == 0, "No Flooding", "Flooding")) %>% 
   st_make_valid() 
 
-contours <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/Contours/contours.shp")%>% 
-  st_transform(crs = sr)%>% 
-  st_make_valid()
-
 imperviousness <- st_read("https://data.calgary.ca/resource/i9mt-qafb.geojson")%>%
-  st_transform(crs = sr)
-
-water <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/water.shp")%>% 
   st_transform(crs = sr)
 
 LandUse <- 
@@ -99,12 +92,6 @@ ggplot()+
   mapTheme()
 
 
-ggplot()+ 
-  geom_sf(data = contours, aes(fill = ContourMin))+ 
-  labs(title = "Calgary Flood Inundation Map")+
-  theme(legend.position = "bottom")+
-  mapTheme()
-
 
 inundation_fishnet <- 
   inundation%>% 
@@ -117,7 +104,7 @@ inundation_fishnet <-
   left_join(fishnet, .)%>% 
   mutate(pctInundation = InundationArea / 250000)%>% 
   mutate_all(funs(replace_na(.,0)))%>%
-  mutate(Inundated = ifelse(pctInundation > .50, 1, 0))%>%
+  mutate(Inundated = ifelse(pctInundation > .2, 1, 0))%>%
   mutate(Label = ifelse(Inundated == 1, "Inundated", "Not Inundated"))
   
 
@@ -132,25 +119,6 @@ ggplot()+
   theme(legend.position = "bottom")+
   mapTheme()
 
-
-inundation_fishnet <- 
-  inundation_fishnet %>% 
-  st_centroid()%>% 
-  st_make_valid()%>%
-  st_join(contours)%>% 
-  st_drop_geometry()%>% 
-  left_join(fishnet, .)
-
-contourStat <- 
-  inundation_fishnet %>% 
-  dplyr::select(Label, ContourMin)%>% 
-  group_by(Label)%>%
-  summarise(avgContour = mean(ContourMin))%>%
-  st_drop_geometry() 
-
-
-ggplot()+ 
-  geom_bar(data = contourStat, aes(x = Label, y = avgContour), stat="identity", fill = "blue")
 
 ```
 
@@ -167,6 +135,13 @@ inundation_fishnet <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm
   dplyr::select(uniqueID, MEAN)%>%
   left_join(inundation_fishnet, .)%>% 
   na.omit()
+
+ggplot()+ 
+  geom_sf(data = inundation_fishnet, aes(fill = Label))+ 
+  scale_fill_manual(values = c("#0294A1", "#B5F8FE"))+ 
+  labs(title = "Calgary Flood Inundation Map")+
+  theme(legend.position = "bottom")+
+  mapTheme()
 
 ggplot() + 
   geom_sf(data = inundation_fishnet, aes(fill = MEAN))+ 
@@ -197,7 +172,7 @@ inundation_fishnet <-
   mutate(pctImpervious = Area / 250000)%>% 
   left_join(inundation_fishnet, .)%>% 
   mutate(Imperv = ifelse(pctImpervious > 0.50, "Pervious", "Impermeable"))%>% 
-  na.omit()
+  mutate_all(funs(replace_na(.,0)))
 
 inundation_fishnet<- 
   inundation_fishnet%>% 
@@ -223,40 +198,12 @@ ggplot()+
 
 ```
 
-```{r Building Denisty, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
-
-inundation_Fish <-st_read("C:/Users/Kyle McCarthy/Documents/GitHub/CPLN-675-Midterm-/Data/Buildings.geojson")%>% 
-  st_centroid()%>% 
-  st_transform(crs = sr)%>% 
-  mutate(BuildingCount = 1) %>%
-  dplyr::select(BuildingCount)%>%
-  aggregate(., inundation_fishnet, sum)%>% 
-  mutate_all(funs(replace_na(.,0)))%>% 
-  mutate(uniqueID = rownames(.))%>%
-  st_drop_geometry()%>% 
-  left_join(inundation_fishnet, .)
-
-
-BuidlingStats<- 
-  inundation_Fish%>% 
-  st_drop_geometry()%>%
-  na.omit()%>%
-  group_by(Label)%>% 
-  summarise(BuildingSum = sum(BuildingCount), 
-            BuildingCountAverage = mean(BuildingCount))
-
-
-ggplot()+ 
-  geom_bar(data = BuidlingStats, aes(x = Label, y = BuildingCountAverage), stat="identity", fill = "blue")
-
-
-```
 
 ```{r Parks, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
 
 st_c <- st_coordinates
 
-PropVal1 <- 
+inundation_Fish <- 
   PropVal %>% 
   mutate(assessed_value = as.numeric(assessed_value))%>%
   dplyr::select(assessed_value)%>%
@@ -267,7 +214,7 @@ PropVal1 <-
   left_join(inundation_fishnet, .)
 
 PropValStats <- 
-  PropVal1%>% 
+  inundation_Fish%>% 
   na.omit()%>%
   st_drop_geometry()%>% 
   group_by(Label)%>% 
@@ -282,7 +229,7 @@ ggplot()+
 
 ```{r LandUse, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
 
-LandUse1 <- 
+Inundation_Fishnet <- 
   LandUse%>% 
   st_make_valid()%>%
   st_intersection(inundation_Fish)%>% 
@@ -294,7 +241,7 @@ LandUse1 <-
   mutate(pctLandCover = landuArea / 250000)
 
 LandStats <- 
-  LandUse1 %>%
+  Inundation_Fishnet %>%
   mutate_all(funs(replace_na(.,0)))%>% 
   group_by(Label)%>% 
   summarise(Rec_low = mean(pctLandCover))
@@ -304,6 +251,34 @@ ggplot()+
   geom_bar(data =LandStats, aes(x = Label, y = Rec_low), stat="identity", fill = "blue")
 
 
+```
+
+
+```{r Building Denisty, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
+
+Inundation_Fishnet<-st_read("C:/Users/Kyle McCarthy/Documents/GitHub/CPLN-675-Midterm-/Data/Buildings.geojson")%>%
+  st_centroid()%>%
+  st_transform(crs = sr)%>%
+  mutate(BuildingCount = 1) %>%
+  dplyr::select(BuildingCount)%>%
+  aggregate(., inundation_fishnet, sum)%>%
+  mutate_all(funs(replace_na(.,0)))%>%
+  mutate(uniqueID = rownames(.))%>%
+  st_drop_geometry()%>%
+  left_join(Inundation_Fishnet, .)
+
+
+BuidlingStats<-
+  Inundation_Fishnet%>%
+  st_drop_geometry()%>%
+  na.omit()%>%
+  group_by(Label)%>%
+  summarise(BuildingSum = sum(BuildingCount),
+            BuildingCountAverage = mean(BuildingCount))
+
+
+ggplot()+
+  geom_bar(data = BuidlingStats, aes(x = Label, y = BuildingCountAverage), stat="identity", fill = "blue")
 
 
 ```
@@ -312,8 +287,15 @@ ggplot()+
 
 
 inundation_Fish <- 
-  inundation_Fish %>%
-  dplyr::select(ContourMin, BuildingCount, MEAN, Inundated) 
+  Inundation_Fishnet %>%
+  dplyr::select(MEAN, pctImpervious, BuildingCount, pctLandCover, assessed_value, Inundated)%>%
+  na.omit()%>% 
+  st_intersection(inundationArea)%>% 
+  mutate(uniqueID = rownames(.))%>%
+  dplyr::select(-uniqueID)
+  
+
+
 
 inundation_Fish$Inundated <- as.factor(inundation_Fish$Inundated)
 
@@ -336,36 +318,36 @@ summary(preserveModel)
 
 
 ```{r Model Validation, message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 12, fig.width = 12} 
-
 classProbs <- predict(preserveModel, preserveTest, type="response")
 
 hist(classProbs)
 
 testProbs <- data.frame(obs = as.numeric(preserveTest$Inundated),
                         pred = classProbs)
-
 ggplot(testProbs, aes(x = pred, fill=as.factor(obs))) + geom_density() +
   facet_grid(obs ~ .) + xlab("Probability") + geom_vline(xintercept = .5) +
   scale_fill_manual(values = c("dodgerblue4", "darkgreen"),
                       labels = c("Not Inundated","Inundated"),
                       name = "")
-
 ```
 
 ```{r ROC message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 12, fig.width = 12}
-
 testProbs$predClass  = ifelse(testProbs$pred > 0.5 ,0,1)
+
+testProbs <- 
+  testProbs %>% 
+  mutate(obs = ifelse(obs == 2, 1, 0))
+
 
 caret::confusionMatrix(reference = as.factor(testProbs$obs), 
                        data = as.factor(testProbs$predClass), 
                        positive = "1")
 
+
 ggplot(testProbs, aes(d = obs, m = pred)) + 
   geom_roc(n.cuts = 50, labels = FALSE) + 
   style_roc(theme = theme_grey) +
   geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey')
-
-
 ```
 
 
