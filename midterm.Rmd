@@ -332,7 +332,7 @@ ggplot(testProbs, aes(x = pred, fill=as.factor(obs))) + geom_density() +
 ```
 
 ```{r ROC message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 12, fig.width = 12}
-testProbs$predClass  = ifelse(testProbs$pred > 0.5 ,0,1)
+testProbs$predClass  = ifelse(testProbs$pred > 0.5 , 1,0)
 
 testProbs <- 
   testProbs %>% 
@@ -348,6 +348,29 @@ ggplot(testProbs, aes(d = obs, m = pred)) +
   geom_roc(n.cuts = 50, labels = FALSE) + 
   style_roc(theme = theme_grey) +
   geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey')
+
+
+preserveTest$uniqueID <- seq.int(nrow(preserveTest))
+testProbs1 <- testProbs
+testProbs$uniqueID <- seq.int(nrow(preserveTest))
+
+try <- left_join(preserveTest, testProbs)
+
+try <- 
+  try%>% 
+  mutate(result = "0")%>% 
+  mutate(result = ifelse(obs == 0 & predClass == 0, "True Negative", result))%>% 
+  mutate(result = ifelse(obs == 1 & predClass == 1, "True Positive", result))%>% 
+  mutate(result = ifelse(obs == 0 & predClass == 1, "False Positive", result))%>% 
+  mutate(result = ifelse(obs == 1 & predClass == 0, "False Negative", result))
+
+
+ggplot() + 
+  geom_sf(data = inundation_Fish)+ 
+  geom_sf(data = try, aes(fill = result))+ 
+  mapTheme() 
+  
+
 ```
 
 
