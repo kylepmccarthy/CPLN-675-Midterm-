@@ -1,13 +1,34 @@
 ---
-title: "MidtermCalgary"
-author: "Tristan Grupp"
-date: "3/28/2021"
-output: html_document
+title: "Calgary and Minneapolis Inundation Modeling"
+author: "Kyle McCarthy, Tristan Grupp"
+date: "3/30/2021"
+output:
+  html_document:
+    keep_md: true
+    toc: true
+    theme: cosmo
+    toc_float: true
+    code_folding: hide
+    number_sections: FALSE
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+
+
+# Introduction 
+
+
+  Knowledge of how and where waters move across the landscape following is necessary to  provide a wealth of information for resource managers and local planning organizations.Modeling is necessary to predict where flooding is expected to occur before it happens. Flooding events often cost municipalities thousands of dollars in damage, reduce community health and protect water quality.Planners, environmental scientists, and community members are able to utilize these models to fortify infrastructure in high risk flooding ares, predict nutrient and pollutant levels in streams, reduce fluctuations in various water bodies and improve stormwater infrastructure.
+
+  This model will incorporate a variety of data sets to  including land use type, demographic data, tree canopy, soil type, and distance to water body.Inundation modeling helps those trying to fortify infrastructure, provide information on flow and flood frequency, predict nutrient and pollutant levels in surface water to understand the impact on regional water quality, and reduce elevation fluctuations in various water bodies.
+
+  For this report, we utilize our model to predict flood inundation in Calgary and Minneapolis to test our model's validity. To accomplish this goal, we divide each city into grid cells and classify each city as "inundated" or "not inundated" based on past events or DEM flood inundation models. Utilizing the variables specified in the paragraph above, our model identifies the common characteristics associated with "inundated" areas or "not inundated" areas. We then split our data into a training set and test set. The training set identifies the common characteristics of the data, and the test set predicts weather a grid cell will be inundated or not inundated based on the training set characteristic. Based on how many grid cells the training set predicted correctly, we can evaluate the effectiveness of our model. 
+
+
+
 
 ```{r setup, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
 library(caret)
@@ -40,6 +61,7 @@ root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analyti
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
 ```
 
+# Exploratory Analysis 
 
 ```{r ImportData, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
 sr <- "+proj=utm +zone=12 +ellps=GRS80 +datum=NAD83 +units=m +no_defs" 
@@ -98,6 +120,8 @@ fishnetM <-
 
 minSales <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/New folder/minsale1.shp")%>% 
   st_transform('ESRI:102293')
+
+st_write(minSales,"C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/New folder/minsale1.geojson")
 
 
 ZonalWaterMin <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/New folder/ZonalWaterMin.dbf")
@@ -574,13 +598,12 @@ OpenStatMinns <-
 grid.arrange(ncol = 2, 
 
 ggplot() + 
-  geom_sf(data = inundation_fishnet , aes(fill = q5(pctLandCover)))+ 
-   scale_fill_manual(values = palette1,
-                    labels = qBr(inundation_fishnet , "pctLandCover"),
-                    name = "Percent Land Cover")+ 
+  geom_sf(data = inundation_fishnet , aes(fill = pctLandCover))+ 
+   scale_fill_viridis()+ 
   labs(title = "Minneapolis - Percent Open Space")+ 
   theme(legend.position = "bottom")+ 
-  theme(plot.title = element_text(hjust = 0.5))+mapTheme(), 
+  theme(plot.title = element_text(hjust = 0.5), 
+        legend.title = element_blank())+mapTheme(), 
 
 ggplot()+ 
   geom_bar(data = LandStats, aes(x = Label, y = Rec_low, fill = Label), stat="identity")+ 
@@ -592,13 +615,12 @@ ggplot()+
         legend.position = "none"), 
 
 ggplot() + 
-  geom_sf(data = inundation_fishnet_minn , aes(fill = q5(pctOpen)))+ 
-   scale_fill_manual(values = palette1,
-                    labels = qBr(inundation_fishnet_minn , "pctOpen"),
-                    name = "Percent Land Cover")+ 
+  geom_sf(data = inundation_fishnet_minn , aes(fill = pctOpen))+ 
+  scale_fill_viridis()+ 
   labs(title = "Minneapolis - Percent Open Space")+ 
   theme(legend.position = "bottom")+ 
-  theme(plot.title = element_text(hjust = 0.5))+mapTheme(), 
+  theme(plot.title = element_text(hjust = 0.5), 
+        legend.title = element_blank())+mapTheme(), 
 
 ggplot()+ 
   geom_bar(data = OpenStatMinns, aes(x = Label, y = pctOpen, fill = Label), stat="identity")+ 
