@@ -94,13 +94,29 @@ fishnetM <-
   st_make_grid(MinnBoundary, cellsize = 250) %>%
   st_sf() %>%
   mutate(uniqueID = rownames(.))%>%
-  st_transform(crs = sr) %>% st_make_valid() 
+  st_transform('ESRI:102293') %>% st_make_valid() 
 
-minSales <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/New folder/minSales.shp")
+minSales <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/New folder/minsale1.shp")%>% 
+  st_transform('ESRI:102293')
+
 
 ZonalWaterMin <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/New folder/ZonalWaterMin.dbf")
 
+imperviousM <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/New folder/impervious.shp")%>% 
+   st_transform('ESRI:102293')%>% 
+  st_make_valid() 
+  
 
+openSpace <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/New folder/OpenSpace.shp")%>% 
+   st_transform('ESRI:102293')%>% 
+  st_make_valid() 
+
+E911 <- st_read("https://opendata.arcgis.com/datasets/da0d8e48df10478bb2160977f988a113_0.geojson")%>%    st_transform('ESRI:102293')%>% 
+  st_make_valid() 
+
+FloodM <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/Flood/fldhaz.shp")%>% 
+   st_transform('ESRI:102293')%>%
+  st_intersection(MinnBoundary)
 
 palette1 <- c("#f2e9e4","#c9ada7","#9a8c98","#4a4e69","#22223b")
 
@@ -111,19 +127,7 @@ palette3 <- c("#FFA866",  "#F17007", "#43C4DB", "#004CFF")
 
 
 
-```{r Create Inundation Fishnet, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
-ggplot()+ 
-  geom_sf(data = inundation, aes(fill = Label))+ 
-  scale_fill_manual(values = c("#B5F8FE", "#0294A1"))+ 
-  labs(title = "Calgary Flood Inundation Map")+
-  theme(legend.position = "bottom")+
-  mapTheme()
-
-  
-```
-
-
-```{r Contours from DEM related to Fishnet, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
+```{r Contours from DEM related to Fishnet, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE, fig.width = 10}
 inundation_fishnet <- 
   inundation%>% 
   filter(gridcode == 1 | gridcode == 2)%>% 
@@ -139,13 +143,40 @@ inundation_fishnet <-
   mutate(Label = ifelse(Inundated == 1, "Inundated", "Not Inundated"))
 
 
-ggplot()+ 
+inundation_fishnet_minn <- 
+  FloodM%>%
+  st_intersection(fishnetM)%>% 
+  mutate(Area = as.numeric(st_area(.)))%>%
+  st_drop_geometry()%>% 
+  group_by(uniqueID)%>%
+  summarise(AreaIn = sum(Area))%>% 
+  mutate(pctInundated = AreaIn / 62500 * 100)%>% 
+  mutate(Inundated = ifelse(pctInundated > 20, 1, 0))%>% 
+  left_join(fishnetM, .)%>% 
+  mutate_all(funs(replace_na(.,0)))%>%
+  mutate(Label = ifelse(Inundated == 1, "Inundated", "Not Inundated"))
+
+
+grid.arrange(ncol = 2, 
+             
+  ggplot()+ 
   geom_sf(data = inundation_fishnet, aes(fill = Label))+ 
   scale_fill_manual(values = c("#0294A1", "#B5F8FE"))+ 
   labs(title = "Calgary Flood Inundation Map", 
        subtitle = "Inundated Grid Cells are 50% inundated")+
   theme(legend.position = "bottom")+
-  mapTheme()
+  mapTheme(), 
+  
+  ggplot()+ 
+  geom_sf(data = inundation_fishnet_minn, aes(fill = Label))+ 
+  scale_fill_manual(values = c("#0294A1", "#B5F8FE"))+ 
+  labs(title = "Minneapolis Flood Inundation Map", 
+       subtitle = "Inundated Grid Cells are 50% inundated")+
+  theme(legend.position = "bottom")+
+  mapTheme()) 
+
+
+  
 
  # inundation_fishnetw <- 
  #   inundation_fishnet %>% 
@@ -172,7 +203,7 @@ ggplot()+
 ```
 
 
-```{r ImportData, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
+```{r ImportData, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE, fig.width = 12, fig.height = 12}
 # Writing out fishnet as shapefile to perform zonal statistics as table on a euclidean distance raster from Calgary's water features 
 # Reading zonal statistics Shapefile 
 
@@ -182,14 +213,22 @@ inundation_fishnet <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm
   left_join(inundation_fishnet, .)%>% 
   na.omit() 
 
+Inundation_fishnet_minn <- 
+  ZonalWaterMin%>% 
+  dplyr:: select(uniqueID, MEAN)%>% 
+  left_join(inundation_fishnet_minn, .)%>% 
+  na.omit() 
+
+grid.arrange(ncol = 2, 
+
 ggplot() + 
   geom_sf(data = inundation_fishnet, aes(fill = q5(MEAN)))+ 
    scale_fill_manual(values = palette1,
                     labels = qBr(inundation_fishnet, "MEAN"),
                     name = "Grid Cell Mean")+ 
-  labs(title = "Distance From Stream (Meters)")+ 
+  labs(title = "Calgary Distance From Stream (Meters)")+ 
   theme(legend.position = "bottom")+ 
-  mapTheme()
+  mapTheme(), 
 
 
 ggplot()+ 
@@ -199,10 +238,30 @@ ggplot()+
   xlab("Inundated Vs. Not Inundated")+ 
   labs(title = "Calgary Average Distance From Stream by Inundation")+ 
   theme(panel.background = element_rect(fill = "white", colour = "grey50"), 
-        legend.position = "none")
+        legend.position = "none"), 
+
+ggplot() + 
+  geom_sf(data = Inundation_fishnet_minn, aes(fill = q5(MEAN)))+ 
+   scale_fill_manual(values = palette1,
+                    labels = qBr(inundation_fishnet, "MEAN"),
+                    name = "Grid Cell Mean")+ 
+  labs(title = "Minneapolis Distance From Stream (Meters)")+ 
+  theme(legend.position = "bottom")+ 
+  mapTheme(), 
+
+ggplot()+ 
+  geom_bar(data = Inundation_fishnet_minn, aes(x = Label, y = MEAN, fill = Label), stat="identity")+ 
+  scale_fill_manual(values = palette2)+ 
+  ylab("Average Distance From Strea")+ 
+  xlab("Inundated Vs. Not Inundated")+ 
+  labs(title = "Calgary Average Distance From Stream by Inundation")+ 
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"), 
+        legend.position = "none")) 
+
+
 ```
 
-``` {r Imperviousness, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
+```{r Imperviousness, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE, fig.width = 12, fig.height = 12}
 # The Intersection Here Takes a While -- est. 20 min 
 Impervious <- st_read("C:/Users/Kyle McCarthy/Documents/GitHub/CPLN-675-Midterm-/Data/Impervious/Imperv_cal.geojson")%>%
   st_transform(crs = sr)
@@ -234,6 +293,29 @@ Impervioustats <-
   group_by(Label)%>% 
   summarise(pctImperv = mean(pctImpervious))
 
+
+inundation_fishnet_minn <- 
+  imperviousM %>% 
+  st_intersection(Inundation_fishnet_minn)%>% 
+  mutate(Area = as.numeric(st_area(.)))%>% 
+  st_drop_geometry()%>% 
+  group_by(uniqueID)%>% 
+  summarise(impervArea = sum(Area))%>% 
+  left_join(Inundation_fishnet_minn, .)%>% 
+  mutate(pctImpervious = impervArea / 62500 * 100)%>% 
+  mutate_all(funs(replace_na(.,0)))
+
+
+ImpervioustatMinns <- 
+  inundation_fishnet_minn %>%
+  dplyr::select(pctImpervious, Label)%>% 
+  mutate_all(funs(replace_na(.,0)))%>% 
+  group_by(Label)%>% 
+  summarise(pctImperv = mean(pctImpervious))
+
+
+grid.arrange(ncol = 2, 
+
 # Group for Graph 
 ggplot() + 
   geom_sf(data = inundation_fishnet, aes(fill = q5(pctImpervious)))+ 
@@ -242,7 +324,8 @@ ggplot() +
                     name = "Percent Impervious")+ 
   labs(title = " Calgrary - Percent Impervious in each Grid Cell")+ 
   theme(legend.position = "bottom")+ 
-  theme(plot.title = element_text(hjust = 0.5))+mapTheme()
+  theme(plot.title = element_text(hjust = 0.5))+mapTheme(), 
+
 
 ggplot()+ 
   geom_bar(data = Impervioustats, aes(x = Label, y = pctImperv, fill = Label), stat="identity")+ 
@@ -251,10 +334,32 @@ ggplot()+
   xlab("Inundated Grid Cells Vs. Not Inundated Grid Cells")+ 
   labs(title = "Calgary Percent Impervious")+ 
   theme(panel.background = element_rect(fill = "white", colour = "grey50"), 
-        legend.position = "none")
+        legend.position = "none"), 
+
+ggplot() + 
+  geom_sf(data = inundation_fishnet_minn , aes(fill = q5(pctImpervious)))+ 
+   scale_fill_manual(values = palette1,
+                    labels = qBr(inundation_fishnet, "pctImpervious"),
+                    name = "Percent Impervious")+ 
+  labs(title = " Minneapolis - Percent Impervious in each Grid Cell")+ 
+  theme(legend.position = "bottom")+ 
+  theme(plot.title = element_text(hjust = 0.5))+mapTheme(), 
+
+
+ggplot()+ 
+  geom_bar(data = ImpervioustatMinns, aes(x = Label, y = pctImperv, fill = Label), stat="identity")+ 
+  scale_fill_manual(values = palette2)+ 
+  ylab("Average Percent Impervious")+ 
+  xlab("Inundated Grid Cells Vs. Not Inundated Grid Cells")+ 
+  labs(title = "Minneapolis Percent Impervious")+ 
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"), 
+        legend.position = "none")) 
+
+
+
 ```
 
-```{r Building Denisty, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
+```{r Building Denisty, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE, fig.height = 12, fig.width = 12} 
 
 inundation_fishnet <-st_read("C:/Users/Kyle McCarthy/Documents/GitHub/CPLN-675-Midterm-/Data/Buildings.geojson")%>%
   #st_read("C:/Users/Tristan/Desktop/PennSpring2021/CPLN675/midterm/Buildings.geojson")%>% 
@@ -267,7 +372,6 @@ inundation_fishnet <-st_read("C:/Users/Kyle McCarthy/Documents/GitHub/CPLN-675-M
   mutate(uniqueID = rownames(.))%>%
   st_drop_geometry()%>% 
   left_join(inundation_fishnet, .)
-
 
 graph <- 
   inundation_fishnet%>% 
@@ -283,6 +387,27 @@ BuidlingStats<-
   summarise(BuildingSum = sum(BuildingCount), 
             BuildingCountAverage = mean(BuildingCount))
 
+
+inundation_fishnet_minn <-E911%>%
+  mutate(BuildingCount = 1) %>%
+  dplyr::select(BuildingCount)%>%
+  aggregate(., inundation_fishnet_minn, sum)%>% 
+  mutate_all(funs(replace_na(.,0)))%>% 
+  mutate(uniqueID = rownames(.))%>%
+  st_drop_geometry()%>% 
+  left_join(inundation_fishnet_minn, .)
+
+BuidlingStatsMinn<- 
+  inundation_fishnet_minn%>% 
+  st_drop_geometry()%>%
+  na.omit()%>%
+  group_by(Label)%>% 
+  summarise(BuildingSum = sum(BuildingCount), 
+            BuildingCountAverage = mean(BuildingCount))
+
+grid.arrange(ncol = 2, 
+
+
 ggplot() + 
   geom_sf(data = graph, aes(fill = q5(BuildingCount)))+ 
    scale_fill_manual(values = palette1,
@@ -290,7 +415,7 @@ ggplot() +
                     name = "Percent Impervious")+ 
   labs(title = " Calgrary - Number of Buildings in each Grid Cell")+ 
   theme(legend.position = "bottom")+ 
-  theme(plot.title = element_text(hjust = 0.5))+mapTheme()
+  theme(plot.title = element_text(hjust = 0.5))+mapTheme(), 
 
 ggplot()+ 
   geom_bar(data = BuidlingStats, aes(x = Label, y = BuildingCountAverage, fill = Label), stat="identity")+ 
@@ -299,11 +424,29 @@ ggplot()+
   xlab("Inundated Grid Cells Vs. Not Inundated Grid Cells")+ 
   labs(title = "Calgary Building Count")+ 
   theme(panel.background = element_rect(fill = "white", colour = "grey50"), 
-        legend.position = "none")
+        legend.position = "none"), 
+
+ggplot() + 
+  geom_sf(data = inundation_fishnet_minn, aes(fill = q5(BuildingCount)))+ 
+   scale_fill_manual(values = palette1,
+                    labels = qBr(inundation_fishnet_minn, "BuildingCount"),
+                    name = "Percent Impervious")+ 
+  labs(title = " Minneapolis - Number of Buildings in each Grid Cell")+ 
+  theme(legend.position = "bottom")+ 
+  theme(plot.title = element_text(hjust = 0.5))+mapTheme(), 
+
+ggplot()+ 
+  geom_bar(data = BuidlingStatsMinn, aes(x = Label, y = BuildingCountAverage, fill = Label), stat="identity")+ 
+  scale_fill_manual(values = palette2)+ 
+  ylab("Average Building Count")+ 
+  xlab("Inundated Grid Cells Vs. Not Inundated Grid Cells")+ 
+  labs(title = "Minneapolis Building Count")+ 
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"), 
+        legend.position = "none")) 
 
 ```
 
-```{r Parks, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
+```{r assessedValue, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE, fig.height = 12, fig.width = 12} 
 st_c <- st_coordinates
 
 inundation_fishnet <- 
@@ -324,6 +467,27 @@ PropValStats <-
   group_by(Label)%>% 
   summarise(assessed_value = sum(assessed_value))
 
+
+inundation_fishnet_minn <- 
+  minSales %>% 
+  mutate(assessed_value = as.numeric(USER_ADJ_S))%>%
+  dplyr::select(assessed_value)%>%
+  aggregate(., inundation_fishnet_minn, mean)%>% 
+  mutate_all(funs(replace_na(.,0)))%>% 
+  mutate(uniqueID = rownames(.))%>%
+  st_drop_geometry()%>% 
+  left_join(inundation_fishnet_minn, .)%>%
+  na.omit()
+
+PropValStatsMin <- 
+  inundation_fishnet_minn%>% 
+  na.omit()%>%
+  st_drop_geometry()%>% 
+  group_by(Label)%>% 
+  summarise(assessed_value = sum(assessed_value))
+
+grid.arrange(ncol = 2, 
+
 ggplot() + 
   geom_sf(data = inundation_fishnet , aes(fill = q5(assessed_value)))+ 
    scale_fill_manual(values = palette1,
@@ -331,7 +495,7 @@ ggplot() +
                     name = "Average Property Value")+ 
   labs(title = " Calgrary - Average Property Value")+ 
   theme(legend.position = "bottom")+ 
-  theme(plot.title = element_text(hjust = 0.5))+mapTheme()
+  theme(plot.title = element_text(hjust = 0.5))+mapTheme(), 
 
 ggplot()+ 
   geom_bar(data = PropValStats, aes(x = Label, y = assessed_value, fill = Label), stat="identity")+ 
@@ -340,10 +504,28 @@ ggplot()+
   xlab("Inundated Grid Cells Vs. Not Inundated Grid Cells")+ 
   labs(title = "Calgary Property Values")+ 
   theme(panel.background = element_rect(fill = "white", colour = "grey50"), 
-        legend.position = "none")
+        legend.position = "none"), 
+
+ggplot() + 
+  geom_sf(data = inundation_fishnet_minn , aes(fill = q5(assessed_value)))+ 
+   scale_fill_manual(values = palette1,
+                    labels = qBr(inundation_fishnet , "assessed_value"),
+                    name = "Average Property Value")+ 
+  labs(title = " Calgrary - Average Property Value")+ 
+  theme(legend.position = "bottom")+ 
+  theme(plot.title = element_text(hjust = 0.5))+mapTheme(), 
+
+ggplot()+ 
+  geom_bar(data = PropValStatsMin, aes(x = Label, y = assessed_value, fill = Label), stat="identity")+ 
+  scale_fill_manual(values = palette2)+ 
+  ylab("Average Property Value")+ 
+  xlab("Inundated Grid Cells Vs. Not Inundated Grid Cells")+ 
+  labs(title = "Calgary Property Values")+ 
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"), 
+        legend.position = "none")) 
 ```
 
-```{r LandUse, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
+```{r LandUse, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE, fig.height = 12, fig.width = 12} 
 inundation_fishnet <- 
   LandUse%>% 
   st_make_valid()%>%
@@ -369,23 +551,63 @@ LandStats <-
   group_by(Label)%>% 
   summarise(Rec_low = mean(pctLandCover))
 
+
+inundation_fishnet_minn <- 
+  openSpace %>% 
+  st_intersection(Inundation_fishnet_minn)%>% 
+  mutate(Area = as.numeric(st_area(.)))%>% 
+  st_drop_geometry()%>% 
+  group_by(uniqueID)%>% 
+  summarise(OpenArea = sum(Area))%>% 
+  left_join(Inundation_fishnet_minn, .)%>% 
+  mutate(pctOpen = OpenArea / 62500 * 100)%>% 
+  mutate_all(funs(replace_na(.,0)))
+
+
+OpenStatMinns <- 
+  inundation_fishnet_minn %>%
+  dplyr::select(pctOpen, Label)%>% 
+  mutate_all(funs(replace_na(.,0)))%>% 
+  group_by(Label)%>% 
+  summarise(pctOpen = mean(pctOpen))
+
+grid.arrange(ncol = 2, 
+
 ggplot() + 
   geom_sf(data = inundation_fishnet , aes(fill = q5(pctLandCover)))+ 
    scale_fill_manual(values = palette1,
                     labels = qBr(inundation_fishnet , "pctLandCover"),
                     name = "Percent Land Cover")+ 
-  labs(title = "Calgrary - Percentage Select Land Covers")+ 
+  labs(title = "Minneapolis - Percent Open Space")+ 
   theme(legend.position = "bottom")+ 
-  theme(plot.title = element_text(hjust = 0.5))+mapTheme()
+  theme(plot.title = element_text(hjust = 0.5))+mapTheme(), 
 
 ggplot()+ 
   geom_bar(data = LandStats, aes(x = Label, y = Rec_low, fill = Label), stat="identity")+ 
   scale_fill_manual(values = palette2)+ 
   ylab("Average Building Count")+ 
   xlab("Inundated Grid Cells Vs. Not Inundated Grid Cells")+ 
-  labs(title = "Calgary Building Count")+ 
+  labs(title = "Calgary Average Open Space by Inundation")+ 
   theme(panel.background = element_rect(fill = "white", colour = "grey50"), 
-        legend.position = "none")
+        legend.position = "none"), 
+
+ggplot() + 
+  geom_sf(data = inundation_fishnet_minn , aes(fill = q5(pctOpen)))+ 
+   scale_fill_manual(values = palette1,
+                    labels = qBr(inundation_fishnet_minn , "pctOpen"),
+                    name = "Percent Land Cover")+ 
+  labs(title = "Minneapolis - Percent Open Space")+ 
+  theme(legend.position = "bottom")+ 
+  theme(plot.title = element_text(hjust = 0.5))+mapTheme(), 
+
+ggplot()+ 
+  geom_bar(data = OpenStatMinns, aes(x = Label, y = pctOpen, fill = Label), stat="identity")+ 
+  scale_fill_manual(values = palette2)+ 
+  ylab("Average Building Count")+ 
+  xlab("Inundated Grid Cells Vs. Not Inundated Grid Cells")+ 
+  labs(title = "Minneapolis Average Open Space by Inundation")+ 
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"), 
+        legend.position = "none")) 
 
 
 ```
