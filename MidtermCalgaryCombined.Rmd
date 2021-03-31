@@ -61,7 +61,10 @@ root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analyti
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
 ```
 
-# Exploratory Analysis 
+## Exploratory Analysis 
+
+
+This section includes our exploratory analysis. Variables explored included percent imperviousness, distance from streams, tree canopy cover, soil cover, percent open space, assessed property values, and infrastructure density. 
 
 ```{r ImportData, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
 sr <- "+proj=utm +zone=12 +ellps=GRS80 +datum=NAD83 +units=m +no_defs" 
@@ -148,7 +151,7 @@ palette2 <- c("#0294A1", "#B5F8FE")
 
 palette3 <- c("#FFA866",  "#F17007", "#43C4DB", "#004CFF")
 ```
-
+### Exploring Inundation
 
 
 ```{r Contours from DEM related to Fishnet, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE, fig.width = 10}
@@ -226,6 +229,7 @@ grid.arrange(ncol = 2,
 #   mapTheme()
 ```
 
+### Distance to Water
 
 ```{r ImportData, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE, fig.width = 12, fig.height = 12}
 # Writing out fishnet as shapefile to perform zonal statistics as table on a euclidean distance raster from Calgary's water features 
@@ -284,6 +288,8 @@ ggplot()+
 
 
 ```
+
+### Percent Impervious
 
 ```{r Imperviousness, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE, fig.width = 12, fig.height = 12}
 # The Intersection Here Takes a While -- est. 20 min 
@@ -383,6 +389,8 @@ ggplot()+
 
 ```
 
+### Infrastructure Density
+
 ```{r Building Denisty, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE, fig.height = 12, fig.width = 12} 
 
 inundation_fishnet <-st_read("C:/Users/Kyle McCarthy/Documents/GitHub/CPLN-675-Midterm-/Data/Buildings.geojson")%>%
@@ -470,6 +478,8 @@ ggplot()+
 
 ```
 
+### Property Value
+
 ```{r assessedValue, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE, fig.height = 12, fig.width = 12} 
 st_c <- st_coordinates
 
@@ -548,6 +558,8 @@ ggplot()+
   theme(panel.background = element_rect(fill = "white", colour = "grey50"), 
         legend.position = "none")) 
 ```
+
+### Percent Open Space
 
 ```{r LandUse, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE, fig.height = 12, fig.width = 12} 
 inundation_fishnet <- 
@@ -634,6 +646,7 @@ ggplot()+
 
 ```
 
+### Tree Canopy 
 
 ```{r Tree Canopy Fishnet and Significance Check, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
 
@@ -731,6 +744,7 @@ ggplot()+
 
 ```
 
+### Soil Analysis 
 
 ```{r Soil Significance Check, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
 
@@ -816,6 +830,8 @@ inundation_fishnet_merge <-
 inundation_fishnet_merge<- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/fishnet2/inundation_fishnet_finalmerge.shp")
 
 ```
+## Model 
+
 
 
 ```{r model, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
@@ -863,7 +879,7 @@ InundationModel <- glm(Inundated ~ .,
 summary(InundationModel)
 
 ```
-
+### Confusion Matrix and ROC Curve 
 
 ```{r Model Validation, message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 8, fig.width = 8} 
 classProbs <- predict(preserveModel, preserveTest, type="response")
@@ -1021,8 +1037,9 @@ ggplot(testProbsM, aes(d = obs, m = pred)) +
   geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'red')) 
 
 ```
+### Mapped Confusion Matrix
 
-```{r ROC, message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 9, fig.width = 16}   
+```{r ROC2, message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 9, fig.width = 16}   
 
 
 preserveTest$uniqueID <- seq.int(nrow(preserveTest))
@@ -1080,7 +1097,7 @@ ggplot() +
 
 ```
 
-
+### All Mapped Predictions
 
 ```{r Cross Validation, message=FALSE, warning=FALSE, include=TRUE, cache = TRUE, fig.height = 8 fig.width = 8} 
 ctrl <- trainControl(method = "cv", 
@@ -1152,6 +1169,9 @@ grid.arrange(ncol = 2,
  
  
 ```
+
+
+## Conclusion 
 
 
 
