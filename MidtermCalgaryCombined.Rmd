@@ -187,7 +187,7 @@ grid.arrange(ncol = 2,
   geom_sf(data = inundation_fishnet, aes(fill = Label))+ 
   scale_fill_manual(values = c("#0294A1", "#B5F8FE"))+ 
   labs(title = "Calgary Flood Inundation Map", 
-       subtitle = "Inundated Grid Cells are 50% inundated")+
+       subtitle = "Inundated Grid Cells are > 50% inundated")+
   theme(legend.position = "bottom")+
   mapTheme(), 
   
@@ -195,7 +195,7 @@ grid.arrange(ncol = 2,
   geom_sf(data = inundation_fishnet_minn, aes(fill = Label))+ 
   scale_fill_manual(values = c("#0294A1", "#B5F8FE"))+ 
   labs(title = "Minneapolis Flood Inundation Map", 
-       subtitle = "Inundated Grid Cells are 50% inundated")+
+       subtitle = "Inundated Grid Cells are  > 50% inundated")+
   theme(legend.position = "bottom")+
   mapTheme()) 
 
@@ -278,7 +278,7 @@ ggplot()+
   scale_fill_manual(values = palette2)+ 
   ylab("Average Distance From Strea")+ 
   xlab("Inundated Vs. Not Inundated")+ 
-  labs(title = "Calgary Average Distance From Stream by Inundation")+ 
+  labs(title = "Minneapolis Average Distance From Stream by Inundation")+ 
   theme(panel.background = element_rect(fill = "white", colour = "grey50"), 
         legend.position = "none")) 
 
@@ -867,31 +867,18 @@ summary(InundationModel)
 
 ```{r Model Validation, message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 8, fig.width = 8} 
 classProbs <- predict(preserveModel, preserveTest, type="response")
-hist(classProbs)
+
 testProbs <- data.frame(obs = as.numeric(preserveTest$Inundatd),
                         pred = classProbs)
-ggplot(testProbs, aes(x = pred, fill=as.factor(obs))) + geom_density() +
-  facet_grid(obs ~ .) + xlab("Probability") + geom_vline(xintercept = .5) +
-  scale_fill_manual(values = c("dodgerblue4", "darkgreen"),
-                      labels = c("Not Inundated","Inundated"),
-                      name = "") + 
-  labs(title = "Density vs. Probability (Calgary")+ 
-  theme(legend.position = "bottom")
+
 ```
 
-``````{r Model Validation, Min message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 8, fig.width = 8} 
+``````{r Model Validation Minn, Min message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 8, fig.width = 8} 
 
-classProbs <- predict(InundationModel, InundationTest, type="response")
-hist(classProbs)
+classProbsM <- predict(InundationModel, InundationTest, type="response")
+
 testProbsM <- data.frame(obs = as.numeric(InundationTest$Inundated),
-                        pred = classProbs)
-ggplot(testProbsM, aes(x = pred, fill=as.factor(obs))) + geom_density() +
-  facet_grid(obs ~ .) + xlab("Probability") + geom_vline(xintercept = .5) +
-  scale_fill_manual(values = c("dodgerblue4", "darkgreen"),
-                      labels = c("Not Inundated","Inundated"),
-                      name = "") + 
-  labs(title = "Density vs. Probability (Calgary")+ 
-  theme(legend.position = "bottom")
+                        pred = classProbsM)
 
 
 ```
@@ -952,49 +939,6 @@ draw_confusion_matrix <- function(cm) {
   text(70, 20, round(as.numeric(cm$overall[2]), 3), cex=1.4)
 }  
 
-
-draw_confusion_matrix(x)
-
-
-
-
-ggplot(testProbs, aes(d = obs, m = pred)) + 
-  geom_roc(n.cuts = 50, labels = FALSE) + 
-  style_roc(theme = theme_light) +
-  ylab("True Positive Fraction")+
-  xlab("True Negative Fraction")+
-  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'red')
-
-
-preserveTest$uniqueID <- seq.int(nrow(preserveTest))
-testProbs1 <- testProbs
-testProbs$uniqueID <- seq.int(nrow(preserveTest))
-
-try <- left_join(preserveTest, testProbs)
-try <- 
-  try%>% 
-  mutate(result = "0")%>% 
-  mutate(result = ifelse(obs == 0 & predClass == 0, "True Negative", result))%>% 
-  mutate(result = ifelse(obs == 1 & predClass == 1, "True Positive", result))%>% 
-  mutate(result = ifelse(obs == 0 & predClass == 1, "False Positive", result))%>% 
-  mutate(result = ifelse(obs == 1 & predClass == 0, "False Negative", result))
-
-ggplot() + 
-  geom_sf(data = inundation_Fish, fill = "white")+ 
-  geom_sf(data = try, aes(fill = result))+ 
-  labs(title = "Calgary Mapped Coorelation Matrix")+
-  scale_fill_manual(values = palette3, name = "My name", 
-                  guide = guide_legend(reverse = TRUE))+ 
-  theme(legend.position = "bottom", 
-        legend.title = element_blank(), 
-        plot.title = element_text(hjust = 0.5))+
-  mapTheme() 
-  
-
-```
-
-```{r ROC Minn, message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 7, fig.width = 7}
-
 testProbsM$predClass  = ifelse(testProbsM$pred > 0.5 , 1,0)
 testProbsM <- 
   testProbsM %>% 
@@ -1004,7 +948,7 @@ testProbsM <-
                        positive = "1")
 
 
-draw_confusion_matrix <- function(cm) {
+draw_confusion_matrix2 <- function(cm) {
 
   layout(matrix(c(1,1,2)))
   par(mar=c(2,2,2,2))
@@ -1050,18 +994,35 @@ draw_confusion_matrix <- function(cm) {
   text(70, 20, round(as.numeric(cm$overall[2]), 3), cex=1.4)
 }  
 
-
-draw_confusion_matrix(y)
-
+par(mfrow=c(1,1))
 
 
+draw_confusion_matrix(x)
 
+draw_confusion_matrix2(y)
+
+
+
+grid.arrange( ncol = 1, 
 ggplot(testProbs, aes(d = obs, m = pred)) + 
   geom_roc(n.cuts = 50, labels = FALSE) + 
   style_roc(theme = theme_light) +
   ylab("True Positive Fraction")+
   xlab("True Negative Fraction")+
-  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'red')
+  labs(title = "Calgary ROC Curve")+ 
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'red'), 
+
+ggplot(testProbsM, aes(d = obs, m = pred)) + 
+  geom_roc(n.cuts = 50, labels = FALSE) + 
+  style_roc(theme = theme_light) +
+  ylab("True Positive Fraction")+
+  xlab("True Negative Fraction")+
+  labs(title = "Minneapolis ROC Curve")+ 
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'red')) 
+
+```
+
+```{r ROC, message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 9, fig.width = 16}   
 
 
 preserveTest$uniqueID <- seq.int(nrow(preserveTest))
@@ -1077,6 +1038,21 @@ try <-
   mutate(result = ifelse(obs == 0 & predClass == 1, "False Positive", result))%>% 
   mutate(result = ifelse(obs == 1 & predClass == 0, "False Negative", result))
 
+InundationTest$uniqueID <- seq.int(nrow(InundationTest))
+
+testProbsM$uniqueID <- seq.int(nrow(InundationTest))
+
+In <- left_join(InundationTest, testProbs)
+In<- 
+  In%>% 
+  mutate(result = "0")%>% 
+  mutate(result = ifelse(obs == 0 & predClass == 0, "True Negative", result))%>% 
+  mutate(result = ifelse(obs == 1 & predClass == 1, "True Positive", result))%>% 
+  mutate(result = ifelse(obs == 0 & predClass == 1, "False Positive", result))%>% 
+  mutate(result = ifelse(obs == 1 & predClass == 0, "False Negative", result))
+
+grid.arrange(ncol = 2, 
+
 ggplot() + 
   geom_sf(data = inundation_Fish, fill = "white")+ 
   geom_sf(data = try, aes(fill = result))+ 
@@ -1086,10 +1062,24 @@ ggplot() +
   theme(legend.position = "bottom", 
         legend.title = element_blank(), 
         plot.title = element_text(hjust = 0.5))+
-  mapTheme() 
+  mapTheme() , 
+
+
+ggplot() + 
+  geom_sf(data = inundation_fishnet_minn, fill = "white")+ 
+  geom_sf(data = In, aes(fill = result))+ 
+  labs(title = "Minneapolis Mapped Coorelation Matrix")+
+  scale_fill_manual(values = palette3, name = "My name", 
+                  guide = guide_legend(reverse = TRUE))+ 
+  theme(legend.position = "bottom", 
+        legend.title = element_blank(), 
+        plot.title = element_text(hjust = 0.5))+
+  theme(plot.title = element_text(size = 36))+ 
+  mapTheme() ) 
   
 
 ```
+
 
 
 ```{r Cross Validation, message=FALSE, warning=FALSE, include=TRUE, cache = TRUE, fig.height = 8 fig.width = 8} 
@@ -1109,24 +1099,55 @@ cvFit <- train(as.factor(Inundatd) ~ .,  data = inundation_Fish1 %>%
                trControl = ctrl)
 cvFit
 
+inundation_fishnet_minn1 <- 
+  inundation_fishnet_minn1 %>% 
+  na.omit() %>% 
+  dplyr::select("MEAN","pctImpervious", "BuildingCount", "assessed_value", "pctOpen", "Inundated" )
+
+cvFit1 <- train(as.factor(Inundated) ~ .,  data = inundation_fishnet_minn1 %>% 
+                                                as.data.frame() %>%
+                                                dplyr::select(-geometry), 
+               method="glm", family="binomial",
+               trControl = ctrl)
+cvFit1
+
+
 
 ```
 
-```{r Mapping Predictions, message=FALSE, warning=FALSE, include=TRUE, cache = TRUE, fig.height = 6, fig.width = 6} 
+
+
+
+```{r Mapping Predictions, message=FALSE, warning=FALSE, include=TRUE, cache = TRUE, fig.height = 8, fig.width = 16  } 
 
 allPredictions <- 
   predict(cvFit, inundation_Fish, type="prob")[,2]
+
+allPredictions1 <- 
+  predict(cvFit1, inundation_fishnet_minn1, type="prob")[,2]
   
-preserve <- 
+Inundation1 <- 
   cbind(inundation_Fish,allPredictions) %>%
   mutate(allPredictions = round(allPredictions * 100)) 
 
+Inundation2 <- 
+  cbind(inundation_fishnet_minn1,allPredictions1) %>%
+  mutate(allPredictions = round(allPredictions1 * 100)) 
 
+
+
+grid.arrange(ncol = 2, 
  ggplot() + 
-    geom_sf(data=preserve, aes(fill=allPredictions))  +
+    geom_sf(data=Inundation1, aes(fill=allPredictions))  +
    scale_fill_continuous(name = "Flood Probability %")+ 
-   labs(title = "Predicted Probabilities of Flood Inundation")+ 
-  mapTheme() 
+   labs(title = "Predicted Probabilities of Flood Inundation Calgary")+ 
+  mapTheme() , 
+ 
+  ggplot() + 
+    geom_sf(data=Inundation2, aes(fill=allPredictions))  +
+   scale_fill_continuous(name = "Flood Probability %")+ 
+   labs(title = "Predicted Probabilities of Flood Inundation Minneapolis")+ 
+  mapTheme() ) 
 
  
  
