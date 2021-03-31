@@ -121,7 +121,7 @@ fishnetM <-
 minSales <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/New folder/minsale1.shp")%>% 
   st_transform('ESRI:102293')
 
-st_write(minSales,"C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/New folder/minsale1.geojson")
+
 
 
 ZonalWaterMin <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm/New folder/ZonalWaterMin.dbf")
@@ -237,7 +237,7 @@ inundation_fishnet <- st_read("C:/Users/Kyle McCarthy/Documents/CPLN 675/Midterm
   left_join(inundation_fishnet, .)%>% 
   na.omit() 
 
-Inundation_fishnet_minn <- 
+inundation_fishnet_minn <- 
   ZonalWaterMin%>% 
   dplyr:: select(uniqueID, MEAN)%>% 
   left_join(inundation_fishnet_minn, .)%>% 
@@ -320,12 +320,12 @@ Impervioustats <-
 
 inundation_fishnet_minn <- 
   imperviousM %>% 
-  st_intersection(Inundation_fishnet_minn)%>% 
+  st_intersection(inundation_fishnet_minn)%>% 
   mutate(Area = as.numeric(st_area(.)))%>% 
   st_drop_geometry()%>% 
   group_by(uniqueID)%>% 
   summarise(impervArea = sum(Area))%>% 
-  left_join(Inundation_fishnet_minn, .)%>% 
+  left_join(inundation_fishnet_minn, .)%>% 
   mutate(pctImpervious = impervArea / 62500 * 100)%>% 
   mutate_all(funs(replace_na(.,0)))
 
@@ -578,12 +578,12 @@ LandStats <-
 
 inundation_fishnet_minn <- 
   openSpace %>% 
-  st_intersection(Inundation_fishnet_minn)%>% 
+  st_intersection(inundation_fishnet_minn)%>% 
   mutate(Area = as.numeric(st_area(.)))%>% 
   st_drop_geometry()%>% 
   group_by(uniqueID)%>% 
   summarise(OpenArea = sum(Area))%>% 
-  left_join(Inundation_fishnet_minn, .)%>% 
+  left_join(inundation_fishnet_minn, .)%>% 
   mutate(pctOpen = OpenArea / 62500 * 100)%>% 
   mutate_all(funs(replace_na(.,0)))
 
@@ -842,6 +842,28 @@ summary(preserveModel)
 
 ```
 
+```{r minn model, message=FALSE, warning=FALSE, include=TRUE, results='hide', cache=TRUE}
+inundation_fishnet_minn1<- 
+  inundation_fishnet_minn%>%
+  dplyr::select("MEAN","pctImpervious", "BuildingCount", "assessed_value", "pctOpen", "Inundated" )
+
+inundation_fishnet_minn1$Inundated <- as.factor(inundation_fishnet_minn1$Inundated)
+
+set.seed(3456)
+trainIndex <- createDataPartition(inundation_fishnet_minn1$Inundated, p = .70,
+                                  list = FALSE,
+                                  times = 1)
+InundationTrain <- inundation_fishnet_minn1[ -trainIndex,]
+InundationTest  <- inundation_fishnet_minn1[-trainIndex,]
+
+InundationModel <- glm(Inundated ~ ., 
+                    family="binomial"(link="logit"), data = InundationTrain %>%
+                                                            as.data.frame() %>%
+                                                            dplyr::select(-geometry))
+summary(InundationModel)
+
+```
+
 
 ```{r Model Validation, message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 8, fig.width = 8} 
 classProbs <- predict(preserveModel, preserveTest, type="response")
@@ -855,6 +877,23 @@ ggplot(testProbs, aes(x = pred, fill=as.factor(obs))) + geom_density() +
                       name = "") + 
   labs(title = "Density vs. Probability (Calgary")+ 
   theme(legend.position = "bottom")
+```
+
+``````{r Model Validation, Min message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 8, fig.width = 8} 
+
+classProbs <- predict(InundationModel, InundationTest, type="response")
+hist(classProbs)
+testProbsM <- data.frame(obs = as.numeric(InundationTest$Inundated),
+                        pred = classProbs)
+ggplot(testProbsM, aes(x = pred, fill=as.factor(obs))) + geom_density() +
+  facet_grid(obs ~ .) + xlab("Probability") + geom_vline(xintercept = .5) +
+  scale_fill_manual(values = c("dodgerblue4", "darkgreen"),
+                      labels = c("Not Inundated","Inundated"),
+                      name = "") + 
+  labs(title = "Density vs. Probability (Calgary")+ 
+  theme(legend.position = "bottom")
+
+
 ```
 
 ```{r ROC, message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 7, fig.width = 7}
@@ -954,6 +993,103 @@ ggplot() +
 
 ```
 
+```{r ROC Minn, message=FALSE, warning=FALSE, include=TRUE, cache=TRUE, fig.height = 7, fig.width = 7}
+
+testProbsM$predClass  = ifelse(testProbsM$pred > 0.5 , 1,0)
+testProbsM <- 
+  testProbsM %>% 
+  mutate(obs = ifelse(obs == 2, 1, 0))
+ y <- caret::confusionMatrix(reference = as.factor(testProbsM$obs), 
+                       data = as.factor(testProbsM$predClass), 
+                       positive = "1")
+
+
+draw_confusion_matrix <- function(cm) {
+
+  layout(matrix(c(1,1,2)))
+  par(mar=c(2,2,2,2))
+  plot(c(100, 345), c(300, 450), type = "n", xlab="", ylab="", xaxt='n', yaxt='n')
+  title('CONFUSION MATRIX CALGARY', cex.main=2)
+
+  # create the matrix 
+  rect(150, 430, 240, 370, col='#3F97D0')
+  text(195, 435, 'Not Inundated', cex=1.2)
+  rect(250, 430, 340, 370, col='#F7AD50')
+  text(295, 435, 'Inundated', cex=1.2)
+  text(125, 370, 'Predicted', cex=1.3, srt=90, font=2)
+  text(245, 450, 'Actual', cex=1.3, font=2)
+  rect(150, 305, 240, 365, col='#F7AD50')
+  rect(250, 305, 340, 365, col='#3F97D0')
+  text(140, 400, 'Not Inundated', cex=1.2, srt=90)
+  text(140, 335, 'Inundated', cex=1.2, srt=90)
+
+  # add in the cm results 
+  res <- as.numeric(cm$table)
+  text(195, 400, res[1], cex=1.6, font=2, col='white')
+  text(195, 335, res[2], cex=1.6, font=2, col='white')
+  text(295, 400, res[3], cex=1.6, font=2, col='white')
+  text(295, 335, res[4], cex=1.6, font=2, col='white')
+
+  # add in the specifics 
+  plot(c(100, 0), c(100, 0), type = "n", xlab="", ylab="", main = "DETAILS", xaxt='n', yaxt='n')
+  text(10, 85, names(cm$byClass[1]), cex=1.2, font=2)
+  text(10, 70, round(as.numeric(cm$byClass[1]), 3), cex=1.2)
+  text(30, 85, names(cm$byClass[2]), cex=1.2, font=2)
+  text(30, 70, round(as.numeric(cm$byClass[2]), 3), cex=1.2)
+  text(50, 85, names(cm$byClass[5]), cex=1.2, font=2)
+  text(50, 70, round(as.numeric(cm$byClass[5]), 3), cex=1.2)
+  text(70, 85, names(cm$byClass[6]), cex=1.2, font=2)
+  text(70, 70, round(as.numeric(cm$byClass[6]), 3), cex=1.2)
+  text(90, 85, names(cm$byClass[7]), cex=1.2, font=2)
+  text(90, 70, round(as.numeric(cm$byClass[7]), 3), cex=1.2)
+
+  # add in the accuracy information 
+  text(30, 35, names(cm$overall[1]), cex=1.5, font=2)
+  text(30, 20, round(as.numeric(cm$overall[1]), 3), cex=1.4)
+  text(70, 35, names(cm$overall[2]), cex=1.5, font=2)
+  text(70, 20, round(as.numeric(cm$overall[2]), 3), cex=1.4)
+}  
+
+
+draw_confusion_matrix(y)
+
+
+
+
+ggplot(testProbs, aes(d = obs, m = pred)) + 
+  geom_roc(n.cuts = 50, labels = FALSE) + 
+  style_roc(theme = theme_light) +
+  ylab("True Positive Fraction")+
+  xlab("True Negative Fraction")+
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'red')
+
+
+preserveTest$uniqueID <- seq.int(nrow(preserveTest))
+testProbs1 <- testProbs
+testProbs$uniqueID <- seq.int(nrow(preserveTest))
+
+try <- left_join(preserveTest, testProbs)
+try <- 
+  try%>% 
+  mutate(result = "0")%>% 
+  mutate(result = ifelse(obs == 0 & predClass == 0, "True Negative", result))%>% 
+  mutate(result = ifelse(obs == 1 & predClass == 1, "True Positive", result))%>% 
+  mutate(result = ifelse(obs == 0 & predClass == 1, "False Positive", result))%>% 
+  mutate(result = ifelse(obs == 1 & predClass == 0, "False Negative", result))
+
+ggplot() + 
+  geom_sf(data = inundation_Fish, fill = "white")+ 
+  geom_sf(data = try, aes(fill = result))+ 
+  labs(title = "Calgary Mapped Coorelation Matrix")+
+  scale_fill_manual(values = palette3, name = "My name", 
+                  guide = guide_legend(reverse = TRUE))+ 
+  theme(legend.position = "bottom", 
+        legend.title = element_blank(), 
+        plot.title = element_text(hjust = 0.5))+
+  mapTheme() 
+  
+
+```
 
 
 ```{r Cross Validation, message=FALSE, warning=FALSE, include=TRUE, cache = TRUE, fig.height = 8 fig.width = 8} 
